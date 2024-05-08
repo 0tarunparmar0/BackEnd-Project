@@ -22,8 +22,9 @@ const uploadOnCloudinary = async (localFilePath) =>{
       })
 
     // uploaded succesfully
-    console.log("File is uploaded succefully on Cloudinary ", response.url);
-    return response;n
+    // console.log("File is uploaded succefully on Cloudinary ", response.url);
+    fs.unlinkSync(localFilePath)
+    return response;
   
   }catch(err){
     fs.unlinkSync(localFilePath); // It removes  the file from local and it is a synchronous function, meaning it will block the execution of any further code until the deletion operation is completed.
