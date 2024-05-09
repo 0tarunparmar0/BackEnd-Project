@@ -3,6 +3,35 @@ import { ApiErrorHandler } from "../utils/ApiErrorHandler.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponseHandler } from "../utils/ApiResponseHandler.js";
+import cookieParser from "cookie-parser";
+
+
+
+  const generateAccessAndRefreshTokens  = async (userId) => {
+
+    try{
+      const user = await User.findById(userId)
+
+      const accessToken = await user.generateAccessToken()
+      const refreshToken = await user.generateRefreshToken()
+
+      // i am thinking of checking that they are thier or not
+      // if(!accessToken && !refreshToken){
+
+      // }
+
+      user.refreshhToken = refreshToken
+
+      // Here when we are saving the refresh token in database it also hits the password and ask for it but we are not passing the password and we dont want to so that e=we are making the validate before save to off / false;
+      await user.save({validateBeforeSave : false})
+
+      // returning the tokens
+      return { accessToken, refreshToken}
+    }catch{
+      throw new ApiErrorHandler(501, "something went wrong while generating Access and Refresh Token")
+    }
+  }
+
 
 const registerUser = asyncHandler(async (req, res) => {
   // get user details from frontend
@@ -16,6 +45,9 @@ const registerUser = asyncHandler(async (req, res) => {
   // return res
 
   // usl se aya hua data hame body mai nhi milta hai
+
+
+
 
   const { fullName, email, username, password } = req.body;
 
@@ -39,20 +71,21 @@ const registerUser = asyncHandler(async (req, res) => {
 
   // check for images, check for avatar
   // console.log(req.files);
+  console.log("email is 1 : ", email);
 
   const avatarLocalPath = req.files?.avatar[0]?.path;
-
+  // console.log("email is  2: ", email);
 
   // This Js Code is Not Right so  instead of this 
   // const coverImageLocalPath = req.files?.coverImage[0]?.path;
   // This Code is Been used
 
-  let  coverImageLocalPath; 
-    if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.lenght > 0){
-      coverImageLocalPath = req.files.coverIamge[0].path;
-    }
-
-
+  let coverImageLocalPath; 
+  if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0){
+    coverImageLocalPath = req.files.coverImage[0].path
+  }
+  
+// who issachin tendulkar
   if (!avatarLocalPath) {
     throw new ApiErrorHandler(401, "Avatar is Required");
   }
@@ -99,4 +132,112 @@ return res.status(201)
   );
 });
 
-export { registerUser };
+const loginUser = asyncHandler(async (req, res) => {
+  //  get for data
+  //  validate - not empty
+  //  check username is correct or not
+  //  password check
+  //  access and refresh token
+  //  send the tokens in cookies )(ecure cookies)
+  //  return response
+  //  Forget Password
+  //  send the verifcation code to the user mail address
+
+  const { email, username, password } = req.body;
+
+  // One of them is must requied
+  if (!username || !email) {
+    throw new ApiErrorHandler(400, "username or email is requireds");
+  }
+
+  // find user using $or ( it is mongo db operator ). here we are checking for or by passing an array of objects
+  const user = await User.findOne({
+    $or: [{ username }, { email }],
+  });
+
+  // user not exist
+  if (!user) {
+    throw new ApiErrorHandler(400, "user does not exist");
+  }
+
+  // check for password
+  const isPasswordValid = await user.isPasswordCorrect(password);
+
+  // incorrect password 
+  if (!isPasswordValid) {
+    throw new ApiErrorHandler(400, "Invalid Password ");
+  }
+
+  // genetaed the access and refresh token by the methods created
+  const {accessToken, refreshToken } =  await generateAccessAndRefreshTokens(user._id)
+
+
+  // Send into the cookies
+  // Now we have to send or return the user or the data, but we are not going to send imp credentials like password and also we can send "user" but our user (above) does not have accessTokens and Refresh Tokens bcz at that time we have not generated them .now we have two options we can simply update the tokens in "user" or we can again do the db call (which can be expensive if the data is large, but here not) . so now it is your choice.
+  
+  
+  const loggedInUser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
+
+    // Now we Sent Cookies
+
+    const options = {
+
+      // That means the cookies are only modiefied by server only  but you can see them
+      httpOnly : true,
+      secure: true,
+    }
+
+    return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken",refreshToken, options)
+    .json(
+      new ApiResponseHandler(200,
+        {
+          user: loggedInUser, accessToken, refreshToken
+        },
+        "User Logged in Successfully"
+      )
+    )
+    
+
+})
+
+const logoutUser = asyncHandler(async (req, res) => {
+  
+  // Remove refresh token 
+  // Remove cookies
+
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set:{
+        refreshToken: undefined
+      }
+    },{
+      new: true
+    }
+  )
+
+  const options = {
+    httpOnly:true,
+    secure: true,
+  }
+
+  return res
+  .status(200)
+  .clearCookie("accessToken",options)
+  .clearCookie("refreshToken",options)
+  .json(
+    new ApiResponseHandler(200,{}, "User logged Out Sucessfully")
+  )
+  
+})
+
+export { 
+  registerUser, 
+  loginUser,
+  logoutUser,
+};
