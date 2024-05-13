@@ -8,27 +8,26 @@ import cookieParser from "cookie-parser";
 
 
   const generateAccessAndRefreshTokens  = async (userId) => {
-
     try{
       const user = await User.findById(userId)
 
       const accessToken = await user.generateAccessToken()
       const refreshToken = await user.generateRefreshToken()
-
-      // i am thinking of checking that they are thier or not
-      // if(!accessToken && !refreshToken){
-
-      // }
+          
 
       user.refreshhToken = refreshToken
 
       // Here when we are saving the refresh token in database it also hits the password and ask for it but we are not passing the password and we dont want to so that e=we are making the validate before save to off / false;
       await user.save({validateBeforeSave : false})
+ 6
+      console.log("validating before save")
+
 
       // returning the tokens
       return { accessToken, refreshToken}
-    }catch{
-      throw new ApiErrorHandler(501, "something went wrong while generating Access and Refresh Token")
+      
+    }catch(err){
+      throw new ApiErrorHandler(501, "something went wrong while generating Access and Refresh Token",err.message)
     }
   }
 
@@ -146,7 +145,7 @@ const loginUser = asyncHandler(async (req, res) => {
   const { email, username, password } = req.body;
 
   // One of them is must requied
-  if (!username || !email) {
+  if (!(username || email)) {
     throw new ApiErrorHandler(400, "username or email is requireds");
   }
 
