@@ -59,7 +59,7 @@ userSchema.pre("save", async function (next) {
   next();
 });
 
-// Check that the password is correct or not by checking it form the encrypted password
+// Check that the password is correct or not by checking it from the encrypted password
 //  here we have written our own custom method (isPasswordCorrect - we can write our own custom methods in mongoose)
 userSchema.methods.isPasswordCorrect = async function (password) {
   return await bcrypt.compare(password, this.password);
